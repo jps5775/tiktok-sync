@@ -2,12 +2,39 @@ import os
 import json
 import subprocess
 
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google_auth_oauthlib.flow import InstalledAppFlow
+import pickle
+
 TIKTOK_USER = "realjoesema"
 
 PROCESSED_FILE = "processed.json"
 DOWNLOAD_DIR = "videos"
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+
+def get_authenticated_service():
+
+    credentials = None
+
+    if os.path.exists("./token.pickle"):
+        with open("./token.pickle", "rb") as token:
+            credentials = pickle.load(token)
+
+    if not credentials:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            "./client_secret.json", SCOPES
+        )
+        credentials = flow.run_local_server(port=0)
+
+        with open("./token.pickle", "wb") as token:
+            pickle.dump(credentials, token)
+
+    return build("youtube", "v3", credentials=credentials)
 
 
 def load_processed():
@@ -38,8 +65,9 @@ def get_tiktok_video_ids():
 
     ids = []
 
-    for entry in data["entries"]:
-        ids.append(entry["id"])
+    for entry in data.get("entries", []):
+        if entry and "id" in entry:
+            ids.append(entry["id"])
 
     return ids
 
@@ -62,14 +90,57 @@ def download_video(video_id):
     return filepath
 
 
-def upload_to_youtube(filepath):
+def upload_to_youtube(filepath, metadata):
 
-    # placeholder
-    print("Uploading to YouTube Shorts:", filepath)
+    youtube = get_authenticated_service()
 
-    # Use YouTube Data API
-    print("Need to implement YouTube upload...")
+    title = metadata["title"][:100]  # YouTube title limit
+    description = metadata["description"]
 
+    body = {
+        "snippet": {
+            "title": title,
+            "description": description,
+            "tags": metadata["tags"],
+            "categoryId": "22"
+        },
+        "status": {
+            "privacyStatus": "public",
+            "selfDeclaredMadeForKids": False
+        }
+    }
+
+    media = MediaFileUpload(filepath)
+
+    request = youtube.videos().insert(
+        part="snippet,status",
+        body=body,
+        media_body=media
+    )
+
+    response = request.execute()
+
+    print("Uploaded:", response["id"])
+
+
+def get_tiktok_metadata(video_id):
+
+    url = f"https://www.tiktok.com/@{TIKTOK_USER}/video/{video_id}"
+
+    result = subprocess.check_output([
+        "yt-dlp",
+        "-J",
+        url
+    ])
+
+    data = json.loads(result)
+
+    return {
+        "title": data.get("description", ""),
+        "description": data.get("description", ""),
+        "uploader": data.get("uploader", ""),
+        "tags": data.get("tags", [])
+    }
 
 def main():
 
@@ -83,9 +154,14 @@ def main():
 
             print("New video detected:", vid)
 
+            metadata = get_tiktok_metadata(vid)
+
             file_path = download_video(vid)
 
-            upload_to_youtube(file_path)
+            try:
+                upload_to_youtube(file_path, metadata)
+            except Exception as e:
+                print("Upload failed:", e)
 
             # cleanup
             if os.path.exists(file_path):
