@@ -5,6 +5,8 @@ import subprocess
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+
 import pickle
 
 TIKTOK_USER = "realjoesema"
@@ -17,19 +19,49 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 
+def generate_token_locally():
+    """
+    Run this function ONLY on your local machine to generate token.pickle.
+    This will open a browser popup for Google login.
+
+    After running once, upload token.pickle to your server.
+    """
+
+    flow = InstalledAppFlow.from_client_secrets_file(
+        "./client_secret.json",
+        SCOPES
+    )
+
+    credentials = flow.run_local_server(
+        port=0,
+        access_type='offline',   # ensures refresh token
+        prompt='consent'         # forces refresh token creation
+    )
+
+    with open("./token.pickle", "wb") as token:
+        pickle.dump(credentials, token)
+
+    print("✅ token.pickle generated successfully")
+    print("Refresh token:", credentials.refresh_token)
+
 def get_authenticated_service():
+    """
+    Server-safe authentication:
+    - Loads token.pickle
+    - Refreshes token automatically
+    - NEVER opens browser / popup
+    """
 
-    credentials = None
+    if not os.path.exists("./token.pickle"):
+        raise Exception("❌ token.pickle not found. Run generate_token_locally() first.")
 
-    if os.path.exists("./token.pickle"):
-        with open("./token.pickle", "rb") as token:
-            credentials = pickle.load(token)
+    with open("./token.pickle", "rb") as token:
+        credentials = pickle.load(token)
 
-    if not credentials:
-        flow = InstalledAppFlow.from_client_secrets_file(
-            "./client_secret.json", SCOPES
-        )
-        credentials = flow.run_local_server(port=0)
+    # Refresh if expired
+    if credentials.expired and credentials.refresh_token:
+        print("🔄 Refreshing access token...")
+        credentials.refresh(Request())
 
         with open("./token.pickle", "wb") as token:
             pickle.dump(credentials, token)
@@ -143,6 +175,11 @@ def get_tiktok_metadata(video_id):
     }
 
 def main():
+
+    # # RUN THIS LOCALLY ONCE TO GENERATE TOKEN.PICKLE FOR YOUTUBE UPLOADS
+    # # AFTER GENERATING -> UPLOAD TOKEN.PICKLE TO SERVER
+    # generate_token_locally()
+    # return
 
     processed = load_processed()
 
