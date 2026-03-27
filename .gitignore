@@ -1,5 +1,7 @@
 client_secret.json
 token.pickle
+.env
 
 videos/
+videos-ig/
 venv/
