@@ -182,12 +182,18 @@ def main():
     print("🚀 Starting Instagram sync...")
 
     processed = load_processed()
-    video_ids = get_tiktok_video_ids()
+    video_ids = list(reversed(get_tiktok_video_ids()))  # oldest → newest
+
+    # Only process the last 2 videos at a time
+    count = 0
 
     for vid in video_ids:
 
         if vid in processed:
             continue
+
+        if count >= 2:
+            break
 
         print(f"\n🎬 New video detected: {vid}")
 
@@ -235,6 +241,7 @@ def main():
         # Only mark as processed if IG upload succeeded
         if success:
             processed.add(vid)
+            count += 1
             print(f"🎉 Successfully processed video: {vid}")
         else:
             print(f"❌ Skipping marking as processed (will retry later): {vid}")
