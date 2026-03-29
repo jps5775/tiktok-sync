@@ -17,7 +17,7 @@ load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 TIKTOK_USER = "realjoesema"
 
-PROCESSED_FILE = "processed_ig.json"
+PROCESSED_FILE = "processed-ig.json"
 DOWNLOAD_DIR = "videos-ig"
 
 BUCKET_NAME = os.getenv("S3_BUCKET")
@@ -132,7 +132,7 @@ def upload_to_instagram(video_url, caption):
 
     # Step 1: Create media container
     res = requests.post(
-        f"https://graph.instagram.com/v25.0/{IG_USER_ID}/media",
+        f"https://graph.facebook.com/v25.0/{IG_USER_ID}/media",
         data={
             "video_url": video_url,
             "caption": caption[:2200],
@@ -157,7 +157,7 @@ def upload_to_instagram(video_url, caption):
 
     # Step 2: Publish
     res = requests.post(
-        f"https://graph.instagram.com/v25.0/{IG_USER_ID}/media_publish",
+        f"https://graph.facebook.com/v25.0/{IG_USER_ID}/media_publish",
         data={
             "creation_id": creation_id,
             "access_token": ACCESS_TOKEN
